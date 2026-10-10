@@ -14,14 +14,14 @@ Mediante consultas SQL se examinan las ventas, ganancias, categorías, clientes,
 - Identificar las regiones y los mercados con mejores resultados.
 - Evaluar la evolución de las ventas a lo largo del tiempo.
 - Comparar el desempeño de los segmentos de clientes.
-- Examinar la relación entre los descuentos y las pérdidas.
+- Examinar la relación entre los descuentos y las ganancias.
 - Identificar productos con ganancias y pérdidas acumuladas.
 - Analizar los tiempos de envío por modalidad.
 - Evaluar la rentabilidad por categoría y región.
 
 ## Herramientas utilizadas
 
-- **SQL:** consultas, agregaciones, subconsultas y funciones de ventana.
+- **SQL:** consultas, agregaciones y funciones de ventana.
 - **Databricks:** ejecución de consultas y análisis de datos.
 - **Git y GitHub:** control de versiones y publicación del proyecto.
 
@@ -57,7 +57,7 @@ superstore-sales-analysis/
 
 ## Consultas SQL y resultados
 
-### Pregunta 1. ¿Qué categorías generan mayores ventas y ganancias?
+### Pregunta 1. ¿Qué categorías de productos generan mayores ventas y ganancias?
 
 **Consulta SQL**
 
@@ -65,12 +65,14 @@ superstore-sales-analysis/
 SELECT
     categoria,
     ROUND(SUM(ventas), 2) AS ventas_totales,
-    ROUND(SUM(ganancia), 2) AS ganancias_totales
-    ROUND(SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100, 2)
-    AS margen_ganancia
+    ROUND(SUM(ganancia), 2) AS ganancias_totales,
+    ROUND(
+        SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100,
+        2
+    ) AS margen_ganancia_pct
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY categoria
-ORDER BY ventas_totales DESC;
+ORDER BY ganancias_totales DESC;
 ```
 
 **Resultados**
@@ -79,7 +81,7 @@ ORDER BY ventas_totales DESC;
 
 ---
 
-### Pregunta 2. ¿Qué subcategorías son las más y menos rentables?
+### Pregunta 2. ¿Qué subcategorías de productos son las más y menos rentables?
 
 **Consulta SQL**
 
@@ -88,8 +90,10 @@ SELECT
     subcategoria,
     ROUND(SUM(ventas), 2) AS ventas_totales,
     ROUND(SUM(ganancia), 2) AS ganancias_totales,
-    ROUND(SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100, 2)
-        AS margen_ganancia_pct
+    ROUND(
+        SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100,
+        2
+    ) AS margen_ganancia_pct
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY subcategoria
 ORDER BY ganancias_totales DESC;
@@ -109,10 +113,11 @@ ORDER BY ganancias_totales DESC;
 SELECT
     region,
     ROUND(SUM(ventas), 2) AS ventas_totales,
-    ROUND(SUM(ganancia), 2) AS ganancias_totales
+    ROUND(SUM(ganancia), 2) AS ganancias_totales,
+    COUNT(DISTINCT id_pedido) AS pedidos_unicos
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY region
-ORDER BY ventas_totales DESC;
+ORDER BY ganancias_totales DESC;
 ```
 
 **Resultados**
@@ -121,7 +126,7 @@ ORDER BY ventas_totales DESC;
 
 ---
 
-### Pregunta 4. ¿Cómo evolucionan las ventas y ganancias a lo largo del tiempo?
+### Pregunta 4. ¿Cómo evolucionan las ventas y las ganancias a lo largo de los años?
 
 **Consulta SQL**
 
@@ -129,7 +134,8 @@ ORDER BY ventas_totales DESC;
 SELECT
     anio,
     ROUND(SUM(ventas), 2) AS ventas_totales,
-    ROUND(SUM(ganancia), 2) AS ganancias_totales
+    ROUND(SUM(ganancia), 2) AS ganancias_totales,
+    COUNT(DISTINCT id_pedido) AS pedidos_unicos
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY anio
 ORDER BY anio;
@@ -148,12 +154,16 @@ ORDER BY anio;
 ```sql
 SELECT
     segmento_cliente,
+    COUNT(DISTINCT id_pedido) AS pedidos_unicos,
     ROUND(SUM(ventas), 2) AS ventas_totales,
     ROUND(SUM(ganancia), 2) AS ganancias_totales,
-    COUNT(DISTINCT id_pedido) AS total_pedidos
+    ROUND(
+        SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100,
+        2
+    ) AS margen_ganancia_pct
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY segmento_cliente
-ORDER BY ventas_totales DESC;
+ORDER BY ganancias_totales DESC;
 ```
 
 **Resultados**
@@ -162,7 +172,7 @@ ORDER BY ventas_totales DESC;
 
 ---
 
-### Pregunta 6. ¿Qué relación existe entre los descuentos y las ganancias?
+### Pregunta 6. ¿Qué relación existe entre los descuentos aplicados y las ganancias?
 
 **Consulta SQL**
 
@@ -171,27 +181,23 @@ SELECT
     CASE
         WHEN descuento = 0 THEN 'Sin descuento'
         WHEN descuento <= 0.10 THEN 'Hasta 10%'
-        WHEN descuento <= 0.20 THEN '10% a 20%'
-        WHEN descuento <= 0.30 THEN '20% a 30%'
-        ELSE 'Más de 30%'
+        WHEN descuento <= 0.20 THEN 'Entre 10% y 20%'
+        WHEN descuento <= 0.30 THEN 'Entre 20% y 30%'
+        ELSE 'Mas de 30%'
     END AS rango_descuento,
-    COUNT(*) AS total_registros,
+    COUNT(*) AS registros,
+    ROUND(AVG(descuento) * 100, 2) AS descuento_promedio_pct,
     ROUND(SUM(ventas), 2) AS ventas_totales,
     ROUND(SUM(ganancia), 2) AS ganancias_totales,
-    ROUND(
-        100.0 * SUM(
-            CASE WHEN ganancia < 0 THEN 1 ELSE 0 END
-        ) / COUNT(*),
-        2
-    ) AS porcentaje_registros_con_perdida
+    ROUND(AVG(ganancia), 2) AS ganancia_promedio_registro
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY
     CASE
         WHEN descuento = 0 THEN 'Sin descuento'
         WHEN descuento <= 0.10 THEN 'Hasta 10%'
-        WHEN descuento <= 0.20 THEN '10% a 20%'
-        WHEN descuento <= 0.30 THEN '20% a 30%'
-        ELSE 'Más de 30%'
+        WHEN descuento <= 0.20 THEN 'Entre 10% y 20%'
+        WHEN descuento <= 0.30 THEN 'Entre 20% y 30%'
+        ELSE 'Mas de 30%'
     END
 ORDER BY MIN(descuento);
 ```
@@ -220,7 +226,6 @@ GROUP BY
     nombre_producto,
     categoria,
     subcategoria
-HAVING SUM(ganancia) > 0
 ORDER BY ganancias_totales DESC
 LIMIT 10;
 ```
@@ -256,25 +261,25 @@ LIMIT 10;
 
 ---
 
-### Pregunta 8. ¿Cuánto tiempo tardan los envíos según su modalidad?
+### Pregunta 8. ¿Cuánto tiempo tardan en enviarse los pedidos según el modo de envío?
 
 **Consulta SQL**
 
 ```sql
 SELECT
     modalidad_envio,
-    COUNT(*) AS total_registros,
+    COUNT(DISTINCT id_pedido) AS pedidos_unicos,
     ROUND(
         AVG(DATEDIFF(fecha_envio, fecha_pedido)),
         2
-    ) AS promedio_dias_envio,
-    MIN(DATEDIFF(fecha_envio, fecha_pedido))
-        AS minimo_dias_envio,
-    MAX(DATEDIFF(fecha_envio, fecha_pedido))
-        AS maximo_dias_envio
+    ) AS dias_promedio_envio,
+    MIN(DATEDIFF(fecha_envio, fecha_pedido)) AS minimo_dias,
+    MAX(DATEDIFF(fecha_envio, fecha_pedido)) AS maximo_dias
 FROM retail_sales.retail_analysis.vw_super_store_orders
+WHERE fecha_envio IS NOT NULL
+  AND fecha_pedido IS NOT NULL
 GROUP BY modalidad_envio
-ORDER BY promedio_dias_envio;
+ORDER BY dias_promedio_envio;
 ```
 
 **Resultados**
@@ -283,7 +288,7 @@ ORDER BY promedio_dias_envio;
 
 ---
 
-### Pregunta 9. ¿Qué países y mercados presentan mejores resultados?
+### Pregunta 9. ¿Qué países y mercados presentan los mejores resultados de ventas y rentabilidad?
 
 **Consulta SQL**
 
@@ -294,13 +299,14 @@ SELECT
     ROUND(SUM(ventas), 2) AS ventas_totales,
     ROUND(SUM(ganancia), 2) AS ganancias_totales,
     ROUND(
-        100.0 * SUM(ganancia)
-        / NULLIF(SUM(ventas), 0),
+        SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100,
         2
-    ) AS margen_ganancia_pct
+    ) AS margen_ganancia_pct,
+    COUNT(DISTINCT id_pedido) AS pedidos_unicos
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY mercado, pais
-ORDER BY ganancias_totales DESC;
+ORDER BY ganancias_totales DESC
+LIMIT 20;
 ```
 
 **Resultados**
@@ -309,39 +315,38 @@ ORDER BY ganancias_totales DESC;
 
 ---
 
-### Pregunta 10. ¿Qué combinaciones de categoría y región presentan mayor rentabilidad?
+### Pregunta 10. ¿Qué combinaciones de categoría y región ofrecen la mayor rentabilidad?
 
 **Consulta SQL**
 
 ```sql
-WITH rentabilidad AS (
+WITH rentabilidad_categoria_region AS (
     SELECT
         categoria,
         region,
         ROUND(SUM(ventas), 2) AS ventas_totales,
         ROUND(SUM(ganancia), 2) AS ganancias_totales,
         ROUND(
-            100.0 * SUM(ganancia)
-            / NULLIF(SUM(ventas), 0),
+            SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100,
             2
         ) AS margen_ganancia_pct
     FROM retail_sales.retail_analysis.vw_super_store_orders
     GROUP BY categoria, region
+),
+ranking AS (
+    SELECT
+        *,
+        RANK() OVER (
+            ORDER BY ganancias_totales DESC
+        ) AS ranking_ganancias,
+        RANK() OVER (
+            ORDER BY margen_ganancia_pct DESC
+        ) AS ranking_margen
+    FROM rentabilidad_categoria_region
 )
-SELECT
-    categoria,
-    region,
-    ventas_totales,
-    ganancias_totales,
-    margen_ganancia_pct,
-    RANK() OVER (
-        ORDER BY ganancias_totales DESC
-    ) AS ranking_ganancias,
-    RANK() OVER (
-        ORDER BY margen_ganancia_pct DESC
-    ) AS ranking_margen
-FROM rentabilidad
-ORDER BY ranking_ganancias;
+SELECT *
+FROM ranking
+ORDER BY ranking_ganancias, ranking_margen;
 ```
 
 **Resultados**
@@ -352,15 +357,15 @@ ORDER BY ranking_ganancias;
 
 ## Hallazgos del análisis
 
-Los resultados obtenidos permiten estudiar las diferencias de rentabilidad entre categorías, subcategorías, regiones y mercados.
+El análisis permite comparar las ventas y ganancias por categoría, subcategoría, región, segmento de clientes y mercado.
 
-También se observa que los registros con descuentos más elevados presentan una mayor frecuencia de pérdidas en este conjunto de datos. Esta relación es una asociación observada y no demuestra, por sí sola, causalidad.
+También permite estudiar la relación entre los descuentos y las ganancias, identificar productos con resultados positivos o negativos y comparar los tiempos de envío según su modalidad.
 
-El análisis de productos permite distinguir entre aquellos que acumulan ganancias y aquellos que acumulan pérdidas, mientras que el análisis de envíos ayuda a comparar los tiempos registrados según la modalidad de entrega.
+Los resultados deben interpretarse dentro del contexto del conjunto de datos utilizado. Las asociaciones observadas no demuestran por sí solas relaciones de causalidad.
 
 ## Conclusión
 
-Este proyecto demuestra la aplicación de SQL para transformar datos de ventas en información útil para el análisis comercial. Las consultas permiten resumir indicadores, comparar segmentos y explorar posibles oportunidades de mejora en la rentabilidad.
+Este proyecto demuestra la aplicación de SQL en Databricks para analizar datos de ventas, calcular indicadores de rentabilidad y responder preguntas de negocio mediante consultas estructuradas.
 
 ## Autor
 
