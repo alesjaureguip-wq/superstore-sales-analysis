@@ -66,6 +66,8 @@ SELECT
     categoria,
     ROUND(SUM(ventas), 2) AS ventas_totales,
     ROUND(SUM(ganancia), 2) AS ganancias_totales
+    ROUND(SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100, 2)
+    AS margen_ganancia_pct
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY categoria
 ORDER BY ventas_totales DESC;
@@ -86,8 +88,6 @@ SELECT
     subcategoria,
     ROUND(SUM(ventas), 2) AS ventas_totales,
     ROUND(SUM(ganancia), 2) AS ganancias_totales
-    ROUND(SUM(ganancia) / NULLIF(SUM(ventas), 0) * 100, 
-    2) AS margen_ganancia_pct
 FROM retail_sales.retail_analysis.vw_super_store_orders
 GROUP BY subcategoria
 ORDER BY ganancias_totales DESC;
